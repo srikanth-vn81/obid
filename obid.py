@@ -4,9 +4,6 @@ from io import BytesIO
 
 # Function to process the data based on the logic provided
 def process_data(ob_data, spl_data, style_data):
-    # Debugging: Check the column names in the OB data
-    st.write("OB Data Columns:", ob_data.columns)
-    
     # Check if 'VPO No' column exists before transforming it into 'PO'
     if 'VPO No' in ob_data.columns:
         def transform_vpo_no(vpo_no):
@@ -112,9 +109,9 @@ if st.sidebar.button("Run") and ob_file and spl_file and style_file:
     final_data = process_data(ob_data, spl_data, style_data)
 
     if final_data is not None:
-        # Display the final processed data
+        # Display the final processed data (this is the only output displayed)
         st.subheader("Processed Data")
-        st.write(final_data)
+        st.dataframe(final_data)
 
         # Prepare the data for download
         output = BytesIO()
