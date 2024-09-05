@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 
-# Function to process the data based on the logic you provided
+# Function to process the data
 def process_data(ob_data, spl_data, style_data):
     # Check if 'VPO No' column exists before transforming it into 'PO'
     if 'VPO No' in ob_data.columns:
@@ -16,7 +16,6 @@ def process_data(ob_data, spl_data, style_data):
         
         ob_data['PO'] = ob_data['VPO No'].apply(transform_vpo_no)
         ob_data['PO'] = ob_data['PO'].astype(str)
-        ob_data['Season'] = ob_data['Season'].astype(str)
     
     # Ensure that 'Production Plan ID' column exists, and if not, create it with default value 0
     if 'Production Plan ID' not in ob_data.columns:
@@ -36,43 +35,42 @@ def process_data(ob_data, spl_data, style_data):
     filtered_data = ob_data[ob_data['Group Tech Class'] == 'BELUNIQLO']
 
     # SPL Processing
-    new_data = filtered_data.copy()
-    new_data['PO'] = new_data['PO'].astype(str).str.strip()
+    filtered_data['PO'] = filtered_data['PO'].astype(str).str.strip()
     spl_data['PO Order NO'] = spl_data['PO Order NO'].astype(str).str.strip()
 
-    new_data = new_data.loc[:, ~new_data.columns.str.contains('^Unnamed')]
+    # Clean up any Unnamed columns in both datasets
+    filtered_data = filtered_data.loc[:, ~filtered_data.columns.str.contains('^Unnamed')]
     spl_data = spl_data.loc[:, ~spl_data.columns.str.contains('^Unnamed')]
 
+    # Create a lookup dictionary for 'Production Plan ID' using the SPL data
     lookup_dict = spl_data.set_index('PO Order NO')['Production Plan ID'].to_dict()
 
-    new_data['Production Plan ID'] = new_data['PO'].map(lookup_dict)
+    # Update 'Production Plan ID' using the SPL data
+    filtered_data['Production Plan ID'] = filtered_data['PO'].map(lookup_dict)
 
-    new_data['Production Plan ID'] = new_data.apply(
+    # Fill missing 'Production Plan ID' with 'PO' if applicable
+    filtered_data['Production Plan ID'] = filtered_data.apply(
         lambda row: row['PO'] if pd.isna(row['Production Plan ID']) and row['PO'].startswith('8') else row['Production Plan ID'],
         axis=1
     )
 
-    new_data_filtered = new_data[new_data['CO Qty'] >= 0].copy()
-
-    new_data_filtered['Style'] = new_data_filtered['Cust Style No'].apply(
-        lambda x: x[2:10] if isinstance(x, str) else x
-    )
+    # Filter rows where 'CO Qty' is non-negative
+    filtered_data = filtered_data[filtered_data['CO Qty'] >= 0]
 
     # Style Product Mapping
     style_lookup_dict = style_data.set_index('Style')['Master Item'].to_dict()
-    new_data_filtered['Product'] = new_data_filtered['Style'].apply(lambda x: style_lookup_dict.get(x, None))
+    filtered_data['Style'] = filtered_data['Cust Style No'].apply(lambda x: x[2:10] if isinstance(x, str) else x)
+    filtered_data['Product'] = filtered_data['Style'].apply(lambda x: style_lookup_dict.get(x, None))
 
-    new_data_filtered = new_data_filtered.loc[:, ~new_data_filtered.columns.str.contains('^Unnamed')]
-
-    return new_data_filtered
+    return filtered_data
 
 # Streamlit App UI
 st.title("Order Book Processing App")
 
-# Sidebar
+# Sidebar for file uploads and actions
 st.sidebar.title("Options")
 
-# File uploaders in sidebar
+# File uploaders in the sidebar
 ob_file = st.sidebar.file_uploader("Upload the OB Excel file", type="xlsx")
 spl_file = st.sidebar.file_uploader("Upload the SPL CSV file", type="csv")
 style_file = st.sidebar.file_uploader("Upload the Style Product Mapping Summary Excel file", type="xlsx")
@@ -107,7 +105,7 @@ if st.sidebar.button("Run") and ob_file and spl_file and style_file:
 else:
     st.write("Please upload all required files and click 'Run'.")
 
-# Custom CSS for UI
+# Custom CSS for UI styling
 st.markdown("""
     <style>
         .stApp {
