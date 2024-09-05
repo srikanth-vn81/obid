@@ -4,6 +4,9 @@ from io import BytesIO
 
 # Function to process the data based on the logic provided
 def process_data(ob_data, spl_data, style_data):
+    # Debugging: Check the column names in the OB data
+    st.write("OB Data Columns:", ob_data.columns)
+    
     # Check if 'VPO No' column exists before transforming it into 'PO'
     if 'VPO No' in ob_data.columns:
         def transform_vpo_no(vpo_no):
@@ -13,7 +16,7 @@ def process_data(ob_data, spl_data, style_data):
                 elif vpo_no.startswith('D'):
                     return 'P' + vpo_no[1:-3]
             return vpo_no
-
+        
         # Create 'PO' from 'VPO No'
         ob_data['PO'] = ob_data['VPO No'].apply(transform_vpo_no)
         ob_data['PO'] = ob_data['PO'].astype(str)
