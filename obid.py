@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 
-# Function to process the data
+# Function to process the data based on the logic provided
 def process_data(ob_data, spl_data, style_data):
     # Check if 'VPO No' column exists before transforming it into 'PO'
     if 'VPO No' in ob_data.columns:
@@ -13,23 +13,34 @@ def process_data(ob_data, spl_data, style_data):
                 elif vpo_no.startswith('D'):
                     return 'P' + vpo_no[1:-3]
             return vpo_no
-        
+
         ob_data['PO'] = ob_data['VPO No'].apply(transform_vpo_no)
         ob_data['PO'] = ob_data['PO'].astype(str)
     
+    else:
+        st.error("'VPO No' column is missing in the OB data.")
+        return None
+
     # Ensure that 'Production Plan ID' column exists, and if not, create it with default value 0
     if 'Production Plan ID' not in ob_data.columns:
         ob_data['Production Plan ID'] = 0
 
     def update_production_plan_id(row):
-        if pd.isna(row['Production Plan ID']) or row['Production Plan ID'] == 0:
-            if row['PO'].startswith('8'):
-                return row['PO']
-            elif row['Season'][-2:] == '23':
-                return 'Season-23'
+        # Ensure 'PO' column exists and is not null
+        if 'PO' in row and isinstance(row['PO'], str):
+            if pd.isna(row['Production Plan ID']) or row['Production Plan ID'] == 0:
+                if row['PO'].startswith('8'):
+                    return row['PO']
+                elif row['Season'][-2:] == '23':
+                    return 'Season-23'
         return row['Production Plan ID']
 
-    ob_data['Production Plan ID'] = ob_data.apply(update_production_plan_id, axis=1)
+    # Ensure that the 'PO' column exists before applying
+    if 'PO' in ob_data.columns and 'Season' in ob_data.columns:
+        ob_data['Production Plan ID'] = ob_data.apply(update_production_plan_id, axis=1)
+    else:
+        st.error("'PO' or 'Season' column is missing.")
+        return None
 
     # Filter the DataFrame for rows where 'Group Tech Class' equals 'BELUNIQLO'
     filtered_data = ob_data[ob_data['Group Tech Class'] == 'BELUNIQLO']
@@ -85,23 +96,24 @@ if st.sidebar.button("Run") and ob_file and spl_file and style_file:
     # Process the data
     final_data = process_data(ob_data, spl_data, style_data)
 
-    # Display the final processed data
-    st.subheader("Processed Data")
-    st.write(final_data)
+    if final_data is not None:
+        # Display the final processed data
+        st.subheader("Processed Data")
+        st.write(final_data)
 
-    # Prepare the data for download
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        final_data.to_excel(writer, index=False)
-    output.seek(0)
+        # Prepare the data for download
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            final_data.to_excel(writer, index=False)
+        output.seek(0)
 
-    # Download button
-    st.download_button(
-        label="Download Processed Data",
-        data=output,
-        file_name='pid_final.xlsx',
-        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
+        # Download button
+        st.download_button(
+            label="Download Processed Data",
+            data=output,
+            file_name='pid_final.xlsx',
+            mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
 else:
     st.write("Please upload all required files and click 'Run'.")
 
